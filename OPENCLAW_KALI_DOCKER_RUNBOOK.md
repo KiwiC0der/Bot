@@ -429,6 +429,106 @@ curl "https://api.telegram.org/bot<bot_token>/getUpdates"
 
 For network instability / DNS/IPv6 issues, see Troubleshooting below.
 
+### 4.7 Telegram voice notes (free, local STT quick-enable)
+
+If you want to send voice notes to your Telegram bot and have OpenClaw process them, enable audio media understanding in your live config:
+
+```json5
+{
+  tools: {
+    media: {
+      audio: {
+        enabled: true,
+        echoTranscript: true, // optional: send recognized transcript back to chat
+      },
+    },
+  },
+}
+```
+
+Why this works:
+
+- OpenClaw handles inbound Telegram voice/audio and can transcribe before agent reply.
+- Audio preflight mention checks are supported for mention-gated groups (`requireMention: true`).
+- `echoTranscript` is off by default; turn it on during setup so you can verify recognition quality quickly.
+
+Local/free path (recommended):
+
+- The **gateway container** must contain a local STT binary (typically `whisper-cli` from whisper.cpp, or Python `whisper`).
+- OpenClaw auto-detects `whisper-cli` / `whisper` on `PATH` when `tools.media.audio.enabled` is not `false`.
+- If neither exists inside the container, voice notes will **not** transcribe (text DMs may still work).
+
+Sanity checks (host):
+
+```bash
+# Gateway port + HTTP stack OK (use a colon: 127.0.0.1:18789 — not 127.0.0.1.18789)
+curl -fsS http://127.0.0.1:18789/healthz
+
+# STT present inside the running gateway image?
+cd "$HOME/openclaw/openclaw"
+sudo docker compose exec openclaw-gateway sh -lc 'command -v whisper-cli || command -v whisper || echo NO_STT_CLI'
+```
+
+If you see `NO_STT_CLI`, rebuild the local image with whisper.cpp (see below).
+
+**OpenRouter / non-audio primary model:** If your default chat model is a text-only provider, OpenClaw’s **auto** audio path may still try provider-based transcription first and never reach `whisper-cli`. Fix: set `tools.media.audio.models` to a **`whisper-cli` CLI entry** (see OpenClaw `resolveLocalWhisperCppEntry` args: `-m <ggml-file> -otxt -of {{OutputBase}} -np -nt {{MediaPath}}`). The `-m` path must match the file inside the container (same as `echo $WHISPER_CPP_MODEL` in `docker compose exec openclaw-gateway sh -lc 'echo $WHISPER_CPP_MODEL'`).
+
+Logs CLI note:
+
+- `openclaw-cli logs` supports **`--limit`** (max lines), not `--tail`.
+- Example: `sudo docker compose run --rm openclaw-cli logs --limit 30`
+- Long `logs --follow` runs can show WebSocket `handshake timeout` in gateway logs during restarts; that is usually the **tail client**, not proof the gateway port is wrong. Prefer `curl` health checks + `docker compose logs openclaw-gateway` when debugging.
+
+Durable image: whisper.cpp inside `openclaw:local` (recommended for Docker)
+
+From your OpenClaw source tree, rebuild the image with the optional Dockerfile layer (compiles `whisper-cli` and downloads the English `base.en` ggml model):
+
+```bash
+cd "$HOME/openclaw/openclaw"
+sudo docker build -t openclaw:local \
+  --build-arg OPENCLAW_INSTALL_WHISPER_CPP=1 \
+  .
+sudo docker compose up -d openclaw-gateway
+```
+
+Note: this rebuild compiles `whisper-cli` with FFmpeg support so it can decode Telegram voice-note formats (usually OGG/Opus).
+
+Optional: different model size (faster vs more accurate), e.g. `tiny.en`:
+
+```bash
+sudo docker build -t openclaw:local \
+  --build-arg OPENCLAW_INSTALL_WHISPER_CPP=1 \
+  --build-arg OPENCLAW_WHISPER_CPP_MODEL=tiny.en \
+  .
+```
+
+Then confirm:
+
+```bash
+sudo docker compose exec openclaw-gateway sh -lc 'command -v whisper-cli && echo "WHISPER_CPP_MODEL=$WHISPER_CPP_MODEL"'
+```
+
+Quick verification:
+
+```bash
+cd "$HOME/openclaw/openclaw"
+sudo docker compose restart openclaw-gateway
+until curl -fsS http://127.0.0.1:18789/healthz >/dev/null; do sleep 1; done
+sudo docker compose run --rm openclaw-cli logs --limit 40
+```
+
+Then send a Telegram voice note to your bot. Expected behavior:
+
+1. transcript appears in logs (and in chat if `echoTranscript: true`)
+2. OpenClaw replies normally to the transcribed text
+
+Mention-gated groups note:
+
+- For groups with `requireMention: true`, voice preflight is enabled by default.
+- If needed, you can disable it per group/topic with:
+  - `channels.telegram.groups.<chatId>.disableAudioPreflight: true`
+  - `channels.telegram.groups.<chatId>.topics.<threadId>.disableAudioPreflight: true`
+
 ---
 
 ## Phase 5 — Skills, sandboxing, and “don’t rm -rf my machine” guardrails
