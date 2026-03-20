@@ -529,6 +529,103 @@ Mention-gated groups note:
   - `channels.telegram.groups.<chatId>.disableAudioPreflight: true`
   - `channels.telegram.groups.<chatId>.topics.<threadId>.disableAudioPreflight: true`
 
+### 4.8 Email sending (SMTP or SendGrid-like API, safe confirmation)
+
+OpenClaw now includes a core tool named `email` (owner-only). It can send:
+
+- Via local `SMTP` (with STARTTLS or SSL)
+- Via a `SendGrid/SES-like` HTTP `POST` API (API-key + Bearer-style auth)
+
+Safety model (important):
+
+- The tool requires `confirm=true` to actually send.
+- It also enforces a recipient allowlist if you configure it.
+
+Prerequisite: install `python3` in the OpenClaw runtime image
+
+Rebuild your local image with `python3` included:
+
+```bash
+cd "$HOME/openclaw/openclaw"
+sudo docker build -t openclaw:local \
+  --build-arg OPENCLAW_INSTALL_WHISPER_CPP=1 \
+  --build-arg OPENCLAW_DOCKER_APT_PACKAGES="python3" \
+  .
+sudo docker compose up -d openclaw-gateway
+```
+
+Configure environment variables (for the gateway container)
+
+Allowlist (recommended):
+
+- `EMAIL_ALLOWLIST_DOMAINS` (comma-separated, e.g. `example.com,contoso.com`)
+- `EMAIL_ALLOWLIST_EMAILS` (comma-separated, e.g. `a@example.com,b@example.com`)
+
+SMTP (example variables):
+
+- `EMAIL_SMTP_HOST`
+- `EMAIL_SMTP_PORT` (default `587`)
+- `EMAIL_SMTP_USERNAME`
+- `EMAIL_SMTP_PASSWORD`
+- `EMAIL_SMTP_USE_STARTTLS` (default `true`)
+- `EMAIL_SMTP_USE_SSL` (default `false`)
+
+API (example variables):
+
+- `EMAIL_API_ENDPOINT` (e.g. `https://api.sendgrid.com/v3/mail/send`)
+- `EMAIL_API_KEY`
+- `EMAIL_API_AUTH_SCHEME` (default `Bearer`)
+
+Sender identity:
+
+- `EMAIL_FROM_EMAIL` (optional if you pass `fromEmail` to the tool)
+- `EMAIL_FROM_NAME` (optional if you pass `fromName` to the tool)
+
+Attachments limits:
+
+- `EMAIL_MAX_ATTACHMENTS` (default `5`)
+- `EMAIL_MAX_ATTACHMENT_BYTES` (default `10000000`)
+
+Quick local test (dry-run)
+
+This validates payload/recipients/attachments without needing SMTP/API env:
+
+```bash
+python3 "$HOME/openclaw/openclaw/skills/email-sender/scripts/send_email.py" <<'EOF'
+{"provider":"smtp","fromEmail":"sender@example.com","to":["rcpt@example.com"],"subject":"Test","text":"Hello","dryRun":true}
+EOF
+```
+
+First chat test with Nova:
+
+1. Ask Nova to send a simple email (no attachments yet).
+2. On the first attempt, the tool returns a confirmation preview.
+3. Reply with explicit confirmation (so Nova re-runs with `confirm=true`).
+
+#### Telegram: “email tool not available” / model says it can’t use `email`
+
+The `email` tool is **owner-only**. OpenClaw only exposes it to the model when **`senderIsOwner`** is true for that inbound message. If your bot accepts DMs from anyone (`channels.telegram.allowFrom` empty / open), **no sender is treated as owner** until you declare who the owner is.
+
+**Fix (recommended):** set a global owner allowlist (channel-native IDs; Telegram user id is numeric):
+
+```json5
+{
+  commands: {
+    ownerAllowFrom: ["telegram:6069715107"], // owner Telegram user id (owner-only tools, e.g. email)
+  },
+}
+```
+
+You can also use the bare id if you prefer (`"6069715107"`); OpenClaw normalizes Telegram allow-from entries (lowercase, optional `telegram:` / `tg:` prefix stripped during matching).
+
+**Still required for the tool to appear in the allowlisted tool set:**
+
+- `tools.profile` that includes `email` (e.g. coding profile + `tools.alsoAllow: ["email"]`), or equivalent per-channel tool policy — same as any other gated tool.
+
+**Alternative (different semantics):** put **only** your user id in `channels.telegram.allowFrom`. That both restricts who can message the bot **and** makes you the command/owner candidate for that channel. Use this only if you want a closed bot, not a public one.
+
+After editing config, restart the gateway (or apply config reload if you use it), then **`/reset`** in Telegram so the session doesn’t keep stale assumptions.
+
 ---
 
 ## Phase 5 — Skills, sandboxing, and “don’t rm -rf my machine” guardrails
