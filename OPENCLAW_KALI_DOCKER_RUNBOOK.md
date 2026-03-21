@@ -626,6 +626,72 @@ You can also use the bare id if you prefer (`"6069715107"`); OpenClaw normalizes
 
 After editing config, restart the gateway (or apply config reload if you use it), then **`/reset`** in Telegram so the session doesn’t keep stale assumptions.
 
+### 4.9 Web access (`web_search`, `web_fetch`, optional `browser`)
+
+OpenClaw exposes **built-in** web tools (no custom scraper scripts required):
+
+- **`web_search`** — provider-backed search (Brave, Gemini, Grok, Kimi, Perplexity, Firecrawl search, etc.). Requires at least one API key in the **gateway** environment or config.
+- **`web_fetch`** — fetches a URL and returns **markdown or plain text** (Readability + optional **Firecrawl**). Enabled by default when present in the tool policy; uses guarded HTTP (SSRF protections, timeouts, size caps).
+- **`browser`** — full browser automation (**separate** from search/fetch; heavier risk surface). Often **denied** in sandbox tool policies alongside `canvas` / `nodes`.
+
+Detailed keys, JSON5 examples, and disable patterns: see **[docs/WEB_ACCESS.md](./docs/WEB_ACCESS.md)** in this repo and upstream **[Web tools](https://docs.openclaw.ai/tools/web)**.
+
+Minimal config shape (optional explicit toggles):
+
+```json5
+{
+  tools: {
+    web: {
+      search: { enabled: true },
+      fetch: { enabled: true },
+    },
+  },
+}
+```
+
+**Docker:** in the **stock** OpenClaw `docker-compose.yml`, `openclaw-gateway` uses `env_file: ./email.env`. Put provider keys **in that file** (or add a second `env_file` such as `web.env`). `compose.env` is mainly for Compose substitution (`OPENCLAW_*`); it does **not** by itself pass `BRAVE_API_KEY` into the container unless you also map it under `environment:`.
+
+Example lines for `~/openclaw/openclaw/email.env` (or a dedicated `web.env`):
+
+- `GEMINI_API_KEY=...` — Gemini + Google Search grounding (typical free-tier path); prefer `tools.web.search.provider: "gemini"` if you may add Brave later
+- `BRAVE_API_KEY=...` — Brave Search API for `web_search`
+- `FIRECRAWL_API_KEY=...` — optional, improves `web_fetch` (and can back search depending on provider)
+
+**Safer Gemini install (hidden paste, backup, chmod 600):** from this Bot repo, run `./scripts/set-gemini-key-openclaw.sh`.
+
+**Hardening:** `chmod 600 ~/openclaw/openclaw/email.env`; never commit that file; rotate keys if they were ever pasted into chat; run `openclaw security audit` after tool-policy changes. See **[docs/WEB_ACCESS.md](./docs/WEB_ACCESS.md)** §6.
+
+Restart the gateway after changes:
+
+```bash
+cd "$HOME/openclaw/openclaw"
+sudo docker compose up -d openclaw-gateway
+```
+
+**Turn off all structured web tools quickly:**
+
+```json5
+{
+  tools: {
+    deny: ["group:web", "browser"],
+  },
+}
+```
+
+**Tool profile reminder:** the **coding** profile includes `web_search` and `web_fetch`. If you use **messaging** / **minimal**, add `web_search` / `web_fetch` via `tools.alsoAllow` (or switch profile) and ensure `tools.deny` / sandbox deny lists do not block them.
+
+Host-side env check (no API calls):
+
+```bash
+# from this Bot repo clone
+./scripts/check-web-access-env.sh
+```
+
+Chat smoke tests:
+
+1. “Search the web for the latest OpenClaw release notes.”
+2. “Use web_fetch on `https://example.com` and summarize in one sentence.”
+
 ---
 
 ## Phase 5 — Skills, sandboxing, and “don’t rm -rf my machine” guardrails

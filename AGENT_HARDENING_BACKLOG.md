@@ -18,6 +18,7 @@ Goal: capture items quickly during development; batch-fix when we revisit an are
 - [ ] **Recipient allowlist** — Keep `EMAIL_ALLOWLIST_*` tight in production; re-test after config changes.
 - [ ] **Telegram surface** — `commands.ownerAllowFrom` is set for owner-only tools; re-audit if the bot becomes public or is added to groups.
 - [ ] **Gateway bind / auth** — Confirm `gateway.bind` and `gateway.auth` match threat model (loopback + token is good for local-only).
+- [ ] **Web tools surface** — If the bot is public or group-facing, confirm `web_search` / `web_fetch` / `browser` match threat model (`tools.deny`, `group:web`, sandbox `tools.sandbox.tools.deny`); see `docs/WEB_ACCESS.md`.
 
 ---
 
@@ -32,7 +33,7 @@ Goal: capture items quickly during development; batch-fix when we revisit an are
 ## UX & docs
 
 - [ ] **Nova prompts** — Keep a short “test email” snippet in runbook or here if the workflow changes.
-- [ ] **Runbook drift** — When OpenClaw upgrades, re-check sections 4.7 (voice) and 4.8 (email) against actual behavior.
+- [ ] **Runbook drift** — When OpenClaw upgrades, re-check sections 4.7 (voice), 4.8 (email), and 4.9 (web) against actual behavior.
 
 ---
 
@@ -44,6 +45,8 @@ Goal: capture items quickly during development; batch-fix when we revisit an are
 ---
 
 ## Done (archive)
+
+- [x] 2026-03-20 — Web access docs + `check-web-access-env.sh` / `set-gemini-key-openclaw.sh`; runbook §4.9; `.gitignore` for env patterns — see `docs/WEB_ACCESS.md`
 
 <!-- Example:
 - [x] 2026-03-19 — Added `commands.ownerAllowFrom` for Telegram owner-only tools — see OPENCLAW_KALI_DOCKER_RUNBOOK §4.8
