@@ -294,6 +294,51 @@ claude setup-token
 docker compose run --rm openclaw-cli models auth setup-token --provider anthropic
 ```
 
+#### Google Gemini (native API key)
+
+Use the **Google** provider when you want Gemini billed by [Google AI Studio](https://aistudio.google.com/) quotas, not by OpenRouter.
+
+From OpenClaw’s Google provider docs:
+
+```bash
+# interactive (paste / select Gemini API key)
+docker compose run --rm openclaw-cli onboard --auth-choice gemini-api-key
+
+# non-interactive (expects GEMINI_API_KEY in the environment for this command)
+docker compose run --rm openclaw-cli onboard --non-interactive \
+  --mode local \
+  --auth-choice gemini-api-key \
+  --gemini-api-key "$GEMINI_API_KEY"
+```
+
+**Docker gateway:** ensure the key is available inside `openclaw-gateway` (stock compose: add `GEMINI_API_KEY=...` to `~/openclaw/openclaw/email.env`, then `sudo docker compose up -d openclaw-gateway`). Safer install: from this repo, `./scripts/set-gemini-key-openclaw.sh`.
+
+Set a **native** Gemini model (provider `google`, not `openrouter`):
+
+```json5
+{
+  agents: {
+    defaults: {
+      model: { primary: "google/gemini-2.5-flash" },
+    },
+  },
+}
+```
+
+Pick a concrete id from your install: `docker compose run --rm openclaw-cli models list --json` and choose a `google/...` entry. Upstream examples use ids like `google/gemini-3.1-pro-preview` (see [Google (Gemini) provider](https://docs.openclaw.ai/providers/google)).
+
+#### OpenRouter billing error (“insufficient balance” / “out of credits”)
+
+If Telegram or the gateway logs show an error like **openrouter (google/gemini-2.0-flash-001) returned a billing error**, the **chat model is routed through OpenRouter**, so usage is charged to your **OpenRouter** account. That fails when OpenRouter credits are exhausted even if Google AI Studio still has quota.
+
+**Fix (keep Telegram and the rest of the stack unchanged):**
+
+1. Add or confirm **`GEMINI_API_KEY`** in the gateway env (`email.env` as above).
+2. Change the default model from an OpenRouter-prefixed ref to a **native Google** ref, e.g. replace `openrouter/google/gemini-2.0-flash-001` (or `openrouter/...`) with `google/gemini-2.5-flash` or another `google/...` id from `models list`.
+3. Restart the gateway: `cd ~/openclaw/openclaw && sudo docker compose up -d openclaw-gateway`.
+
+**Alternatives:** top up OpenRouter, or switch the primary model to another provider you already fund (OpenAI, Anthropic, Ollama) using the sections above—without changing Telegram token or channel config.
+
 Useful verification commands (from CLI docs):
 
 ```bash
