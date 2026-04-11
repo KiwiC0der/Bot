@@ -217,6 +217,29 @@ Or from this repo: `./scripts/fix-openclaw-compose-dotenv-perms.sh`
 
 Then retry `docker compose up -d openclaw-gateway` (or your CLI command).
 
+#### Docker: `permission denied` connecting to `docker.sock`
+
+If commands fail with **`permission denied while trying to connect to the docker API at unix:///var/run/docker.sock`** (or **`unable to get image`** for the same reason), your user **cannot use the Docker socket** without elevated access. This is normal on a fresh install until your account is in the **`docker`** group.
+
+**Permanent fix (recommended):** add yourself to the group, then start a **new login session** (or use `newgrp` once):
+
+```bash
+sudo usermod -aG docker "$USER"
+# Log out and back in, OR in this shell only:
+newgrp docker
+docker info
+```
+
+See also **§1.3.5 Optional: allow running Docker without sudo** (same steps; note the security tradeoff).
+
+**Immediate workaround (no group change):** prefix Compose with **`sudo`**:
+
+```bash
+cd ~/openclaw/openclaw
+sudo docker compose up -d openclaw-gateway
+sudo docker compose run --rm openclaw-cli models list --json
+```
+
 What this does (per docs):
 
 - Builds (or pulls) the gateway image
