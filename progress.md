@@ -1,8 +1,8 @@
 # Nova Progress Log
-## Iteration: 4
+## Iteration: 5
 ## Last updated: 2026-04-11
-## Current goal: Document Docker socket permission denied for compose
-## Last attempt: Runbook §2.2 — docker.sock + usermod/newgrp vs sudo docker compose
+## Current goal: Stop Telegram using sticky Ollama session model causing timeouts
+## Last attempt: channels.modelByChannel.telegram.* = google/gemini-2.5-flash in ~/.openclaw/openclaw.json
 ## Last failure reason: N/A
 ## Sub-agents registered: none
-## Iteration count: 4
+## Iteration count: 5
