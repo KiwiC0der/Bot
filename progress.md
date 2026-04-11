@@ -6,3 +6,5 @@
 ## Last failure reason: N/A
 ## Sub-agents registered: none
 ## Iteration count: 5
+
+<!-- Anti-drift (iter 5): OpenClaw applies session modelOverride before channels.modelByChannel; user must /model google/gemini-2.5-flash to clear sticky ollama. -->
