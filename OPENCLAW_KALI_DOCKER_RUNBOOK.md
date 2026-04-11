@@ -339,6 +339,14 @@ If Telegram or the gateway logs show an error like **openrouter (google/gemini-2
 
 **Alternatives:** top up OpenRouter, or switch the primary model to another provider you already fund (OpenAI, Anthropic, Ollama) using the sections above—without changing Telegram token or channel config.
 
+#### Ollama: “LLM request timed out”
+
+If the session banner shows **`ollama/...`** but every reply fails with **LLM request timed out**, the gateway usually **cannot complete a request to your Ollama `baseUrl`** (wrong address from inside Docker, firewall, Ollama not running, or an overloaded/slow model).
+
+**Quick check (host):** `curl -sS -m 3 http://<ollama-host>:11434/api/tags` — if this times out, OpenClaw will too.
+
+**Why Docker matters:** A LAN IP like `http://10.0.0.x:11434` might work on your laptop but not from the `openclaw-gateway` container (different network namespace). Fix the **routing** (e.g. host IP reachable from the container, `extra_hosts`, or run Ollama on a host the container can reach), **or** set `agents.defaults.model.primary` to a provider the gateway already reaches with env keys (**`google/gemini-2.5-flash`** with `GEMINI_API_KEY` in `email.env` is a common fallback).
+
 Useful verification commands (from CLI docs):
 
 ```bash

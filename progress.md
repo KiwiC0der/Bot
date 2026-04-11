@@ -1,8 +1,8 @@
 # Nova Progress Log
-## Iteration: 1
+## Iteration: 2
 ## Last updated: 2026-04-11
-## Current goal: Fix Telegram Nova OpenRouter billing error
-## Last attempt: Set agents.defaults.model.primary to ollama/glm-4.7-flash; documented Google path in runbook
+## Current goal: Fix Telegram LLM timeouts after switching to Ollama
+## Last attempt: Primary set to google/gemini-2.5-flash (Ollama at 10.0.0.252 unreachable from host curl); runbook note for Ollama timeouts
 ## Last failure reason: N/A
 ## Sub-agents registered: none
-## Iteration count: 1
+## Iteration count: 2
