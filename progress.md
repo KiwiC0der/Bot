@@ -1,8 +1,8 @@
 # Nova Progress Log
-## Iteration: 2
+## Iteration: 3
 ## Last updated: 2026-04-11
-## Current goal: Fix Telegram LLM timeouts after switching to Ollama
-## Last attempt: Primary set to google/gemini-2.5-flash (Ollama at 10.0.0.252 unreachable from host curl); runbook note for Ollama timeouts
+## Current goal: Fix docker compose .env permission denied
+## Last attempt: Documented root-owned .env; added scripts/fix-openclaw-compose-dotenv-perms.sh; user must sudo chown locally
 ## Last failure reason: N/A
 ## Sub-agents registered: none
-## Iteration count: 2
+## Iteration count: 3

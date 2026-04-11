@@ -18,3 +18,4 @@ This repository holds **documentation and helper scripts** for operating OpenCla
 |--------|---------|
 | [scripts/check-web-access-env.sh](./scripts/check-web-access-env.sh) | Print which web-related env vars are set (no network I/O) |
 | [scripts/set-gemini-key-openclaw.sh](./scripts/set-gemini-key-openclaw.sh) | Prompt for `GEMINI_API_KEY`, write `~/openclaw/openclaw/email.env`, restart gateway |
+| [scripts/fix-openclaw-compose-dotenv-perms.sh](./scripts/fix-openclaw-compose-dotenv-perms.sh) | If Compose errors on `.env` permission denied: `sudo chown` to your user (after root-owned `docker-setup.sh`) |

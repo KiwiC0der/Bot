@@ -200,6 +200,23 @@ export OPENCLAW_DOCKER_SOCKET=/run/user/1000/docker.sock
 ./docker-setup.sh
 ```
 
+#### Compose: `open .../.env: permission denied`
+
+If **`docker compose`** or **`docker compose run openclaw-cli ...`** fails with **`permission denied`** on **`~/openclaw/openclaw/.env`**, the file is usually **owned by `root`** (for example when setup was run under `sudo`) while your user runs Compose normally. Compose must **read** that file.
+
+**Check:** `ls -la ~/openclaw/openclaw/.env` — if you see `root root` and `-rw-------`, your user cannot open it.
+
+**Fix (one-time):** give the file back to your user, keep it private:
+
+```bash
+sudo chown "$USER:$USER" ~/openclaw/openclaw/.env
+chmod 600 ~/openclaw/openclaw/.env
+```
+
+Or from this repo: `./scripts/fix-openclaw-compose-dotenv-perms.sh`
+
+Then retry `docker compose up -d openclaw-gateway` (or your CLI command).
+
 What this does (per docs):
 
 - Builds (or pulls) the gateway image
