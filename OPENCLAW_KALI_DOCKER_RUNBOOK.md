@@ -200,6 +200,46 @@ export OPENCLAW_DOCKER_SOCKET=/run/user/1000/docker.sock
 ./docker-setup.sh
 ```
 
+#### Compose: `open .../.env: permission denied`
+
+If **`docker compose`** or **`docker compose run openclaw-cli ...`** fails with **`permission denied`** on **`~/openclaw/openclaw/.env`**, the file is usually **owned by `root`** (for example when setup was run under `sudo`) while your user runs Compose normally. Compose must **read** that file.
+
+**Check:** `ls -la ~/openclaw/openclaw/.env` — if you see `root root` and `-rw-------`, your user cannot open it.
+
+**Fix (one-time):** give the file back to your user, keep it private:
+
+```bash
+sudo chown "$USER:$USER" ~/openclaw/openclaw/.env
+chmod 600 ~/openclaw/openclaw/.env
+```
+
+Or from this repo: `./scripts/fix-openclaw-compose-dotenv-perms.sh`
+
+Then retry `docker compose up -d openclaw-gateway` (or your CLI command).
+
+#### Docker: `permission denied` connecting to `docker.sock`
+
+If commands fail with **`permission denied while trying to connect to the docker API at unix:///var/run/docker.sock`** (or **`unable to get image`** for the same reason), your user **cannot use the Docker socket** without elevated access. This is normal on a fresh install until your account is in the **`docker`** group.
+
+**Permanent fix (recommended):** add yourself to the group, then start a **new login session** (or use `newgrp` once):
+
+```bash
+sudo usermod -aG docker "$USER"
+# Log out and back in, OR in this shell only:
+newgrp docker
+docker info
+```
+
+See also **§1.3.5 Optional: allow running Docker without sudo** (same steps; note the security tradeoff).
+
+**Immediate workaround (no group change):** prefix Compose with **`sudo`**:
+
+```bash
+cd ~/openclaw/openclaw
+sudo docker compose up -d openclaw-gateway
+sudo docker compose run --rm openclaw-cli models list --json
+```
+
 What this does (per docs):
 
 - Builds (or pulls) the gateway image
@@ -293,6 +333,59 @@ claude setup-token
 # Then, on the gateway host, add it to OpenClaw auth
 docker compose run --rm openclaw-cli models auth setup-token --provider anthropic
 ```
+
+#### Google Gemini (native API key)
+
+Use the **Google** provider when you want Gemini billed by [Google AI Studio](https://aistudio.google.com/) quotas, not by OpenRouter.
+
+From OpenClaw’s Google provider docs:
+
+```bash
+# interactive (paste / select Gemini API key)
+docker compose run --rm openclaw-cli onboard --auth-choice gemini-api-key
+
+# non-interactive (expects GEMINI_API_KEY in the environment for this command)
+docker compose run --rm openclaw-cli onboard --non-interactive \
+  --mode local \
+  --auth-choice gemini-api-key \
+  --gemini-api-key "$GEMINI_API_KEY"
+```
+
+**Docker gateway:** ensure the key is available inside `openclaw-gateway` (stock compose: add `GEMINI_API_KEY=...` to `~/openclaw/openclaw/email.env`, then `sudo docker compose up -d openclaw-gateway`). Safer install: from this repo, `./scripts/set-gemini-key-openclaw.sh`.
+
+Set a **native** Gemini model (provider `google`, not `openrouter`):
+
+```json5
+{
+  agents: {
+    defaults: {
+      model: { primary: "google/gemini-2.5-flash" },
+    },
+  },
+}
+```
+
+Pick a concrete id from your install: `docker compose run --rm openclaw-cli models list --json` and choose a `google/...` entry. Upstream examples use ids like `google/gemini-3.1-pro-preview` (see [Google (Gemini) provider](https://docs.openclaw.ai/providers/google)).
+
+#### OpenRouter billing error (“insufficient balance” / “out of credits”)
+
+If Telegram or the gateway logs show an error like **openrouter (google/gemini-2.0-flash-001) returned a billing error**, the **chat model is routed through OpenRouter**, so usage is charged to your **OpenRouter** account. That fails when OpenRouter credits are exhausted even if Google AI Studio still has quota.
+
+**Fix (keep Telegram and the rest of the stack unchanged):**
+
+1. Add or confirm **`GEMINI_API_KEY`** in the gateway env (`email.env` as above).
+2. Change the default model from an OpenRouter-prefixed ref to a **native Google** ref, e.g. replace `openrouter/google/gemini-2.0-flash-001` (or `openrouter/...`) with `google/gemini-2.5-flash` or another `google/...` id from `models list`.
+3. Restart the gateway: `cd ~/openclaw/openclaw && sudo docker compose up -d openclaw-gateway`.
+
+**Alternatives:** top up OpenRouter, or switch the primary model to another provider you already fund (OpenAI, Anthropic, Ollama) using the sections above—without changing Telegram token or channel config.
+
+#### Ollama: “LLM request timed out”
+
+If the session banner shows **`ollama/...`** but every reply fails with **LLM request timed out**, the gateway usually **cannot complete a request to your Ollama `baseUrl`** (wrong address from inside Docker, firewall, Ollama not running, or an overloaded/slow model).
+
+**Quick check (host):** `curl -sS -m 3 http://<ollama-host>:11434/api/tags` — if this times out, OpenClaw will too.
+
+**Why Docker matters:** A LAN IP like `http://10.0.0.x:11434` might work on your laptop but not from the `openclaw-gateway` container (different network namespace). Fix the **routing** (e.g. host IP reachable from the container, `extra_hosts`, or run Ollama on a host the container can reach), **or** set `agents.defaults.model.primary` to a provider the gateway already reaches with env keys (**`google/gemini-2.5-flash`** with `GEMINI_API_KEY` in `email.env` is a common fallback).
 
 Useful verification commands (from CLI docs):
 
@@ -428,6 +521,269 @@ curl "https://api.telegram.org/bot<bot_token>/getUpdates"
   - disable privacy mode in BotFather (`/setprivacy`), then remove + re-add the bot to the group.
 
 For network instability / DNS/IPv6 issues, see Troubleshooting below.
+
+### 4.7 Telegram voice notes (free, local STT quick-enable)
+
+If you want to send voice notes to your Telegram bot and have OpenClaw process them, enable audio media understanding in your live config:
+
+```json5
+{
+  tools: {
+    media: {
+      audio: {
+        enabled: true,
+        echoTranscript: true, // optional: send recognized transcript back to chat
+      },
+    },
+  },
+}
+```
+
+Why this works:
+
+- OpenClaw handles inbound Telegram voice/audio and can transcribe before agent reply.
+- Audio preflight mention checks are supported for mention-gated groups (`requireMention: true`).
+- `echoTranscript` is off by default; turn it on during setup so you can verify recognition quality quickly.
+
+Local/free path (recommended):
+
+- The **gateway container** must contain a local STT binary (typically `whisper-cli` from whisper.cpp, or Python `whisper`).
+- OpenClaw auto-detects `whisper-cli` / `whisper` on `PATH` when `tools.media.audio.enabled` is not `false`.
+- If neither exists inside the container, voice notes will **not** transcribe (text DMs may still work).
+
+Sanity checks (host):
+
+```bash
+# Gateway port + HTTP stack OK (use a colon: 127.0.0.1:18789 — not 127.0.0.1.18789)
+curl -fsS http://127.0.0.1:18789/healthz
+
+# STT present inside the running gateway image?
+cd "$HOME/openclaw/openclaw"
+sudo docker compose exec openclaw-gateway sh -lc 'command -v whisper-cli || command -v whisper || echo NO_STT_CLI'
+```
+
+If you see `NO_STT_CLI`, rebuild the local image with whisper.cpp (see below).
+
+**OpenRouter / non-audio primary model:** If your default chat model is a text-only provider, OpenClaw’s **auto** audio path may still try provider-based transcription first and never reach `whisper-cli`. Fix: set `tools.media.audio.models` to a **`whisper-cli` CLI entry** (see OpenClaw `resolveLocalWhisperCppEntry` args: `-m <ggml-file> -otxt -of {{OutputBase}} -np -nt {{MediaPath}}`). The `-m` path must match the file inside the container (same as `echo $WHISPER_CPP_MODEL` in `docker compose exec openclaw-gateway sh -lc 'echo $WHISPER_CPP_MODEL'`).
+
+Logs CLI note:
+
+- `openclaw-cli logs` supports **`--limit`** (max lines), not `--tail`.
+- Example: `sudo docker compose run --rm openclaw-cli logs --limit 30`
+- Long `logs --follow` runs can show WebSocket `handshake timeout` in gateway logs during restarts; that is usually the **tail client**, not proof the gateway port is wrong. Prefer `curl` health checks + `docker compose logs openclaw-gateway` when debugging.
+
+Durable image: whisper.cpp inside `openclaw:local` (recommended for Docker)
+
+From your OpenClaw source tree, rebuild the image with the optional Dockerfile layer (compiles `whisper-cli` and downloads the English `base.en` ggml model):
+
+```bash
+cd "$HOME/openclaw/openclaw"
+sudo docker build -t openclaw:local \
+  --build-arg OPENCLAW_INSTALL_WHISPER_CPP=1 \
+  .
+sudo docker compose up -d openclaw-gateway
+```
+
+Note: this rebuild compiles `whisper-cli` with FFmpeg support so it can decode Telegram voice-note formats (usually OGG/Opus).
+
+Optional: different model size (faster vs more accurate), e.g. `tiny.en`:
+
+```bash
+sudo docker build -t openclaw:local \
+  --build-arg OPENCLAW_INSTALL_WHISPER_CPP=1 \
+  --build-arg OPENCLAW_WHISPER_CPP_MODEL=tiny.en \
+  .
+```
+
+Then confirm:
+
+```bash
+sudo docker compose exec openclaw-gateway sh -lc 'command -v whisper-cli && echo "WHISPER_CPP_MODEL=$WHISPER_CPP_MODEL"'
+```
+
+Quick verification:
+
+```bash
+cd "$HOME/openclaw/openclaw"
+sudo docker compose restart openclaw-gateway
+until curl -fsS http://127.0.0.1:18789/healthz >/dev/null; do sleep 1; done
+sudo docker compose run --rm openclaw-cli logs --limit 40
+```
+
+Then send a Telegram voice note to your bot. Expected behavior:
+
+1. transcript appears in logs (and in chat if `echoTranscript: true`)
+2. OpenClaw replies normally to the transcribed text
+
+Mention-gated groups note:
+
+- For groups with `requireMention: true`, voice preflight is enabled by default.
+- If needed, you can disable it per group/topic with:
+  - `channels.telegram.groups.<chatId>.disableAudioPreflight: true`
+  - `channels.telegram.groups.<chatId>.topics.<threadId>.disableAudioPreflight: true`
+
+### 4.8 Email sending (SMTP or SendGrid-like API, safe confirmation)
+
+OpenClaw now includes a core tool named `email` (owner-only). It can send:
+
+- Via local `SMTP` (with STARTTLS or SSL)
+- Via a `SendGrid/SES-like` HTTP `POST` API (API-key + Bearer-style auth)
+
+Safety model (important):
+
+- The tool requires `confirm=true` to actually send.
+- It also enforces a recipient allowlist if you configure it.
+
+Prerequisite: install `python3` in the OpenClaw runtime image
+
+Rebuild your local image with `python3` included:
+
+```bash
+cd "$HOME/openclaw/openclaw"
+sudo docker build -t openclaw:local \
+  --build-arg OPENCLAW_INSTALL_WHISPER_CPP=1 \
+  --build-arg OPENCLAW_DOCKER_APT_PACKAGES="python3" \
+  .
+sudo docker compose up -d openclaw-gateway
+```
+
+Configure environment variables (for the gateway container)
+
+Allowlist (recommended):
+
+- `EMAIL_ALLOWLIST_DOMAINS` (comma-separated, e.g. `example.com,contoso.com`)
+- `EMAIL_ALLOWLIST_EMAILS` (comma-separated, e.g. `a@example.com,b@example.com`)
+
+SMTP (example variables):
+
+- `EMAIL_SMTP_HOST`
+- `EMAIL_SMTP_PORT` (default `587`)
+- `EMAIL_SMTP_USERNAME`
+- `EMAIL_SMTP_PASSWORD`
+- `EMAIL_SMTP_USE_STARTTLS` (default `true`)
+- `EMAIL_SMTP_USE_SSL` (default `false`)
+
+API (example variables):
+
+- `EMAIL_API_ENDPOINT` (e.g. `https://api.sendgrid.com/v3/mail/send`)
+- `EMAIL_API_KEY`
+- `EMAIL_API_AUTH_SCHEME` (default `Bearer`)
+
+Sender identity:
+
+- `EMAIL_FROM_EMAIL` (optional if you pass `fromEmail` to the tool)
+- `EMAIL_FROM_NAME` (optional if you pass `fromName` to the tool)
+
+Attachments limits:
+
+- `EMAIL_MAX_ATTACHMENTS` (default `5`)
+- `EMAIL_MAX_ATTACHMENT_BYTES` (default `10000000`)
+
+Quick local test (dry-run)
+
+This validates payload/recipients/attachments without needing SMTP/API env:
+
+```bash
+python3 "$HOME/openclaw/openclaw/skills/email-sender/scripts/send_email.py" <<'EOF'
+{"provider":"smtp","fromEmail":"sender@example.com","to":["rcpt@example.com"],"subject":"Test","text":"Hello","dryRun":true}
+EOF
+```
+
+First chat test with Nova:
+
+1. Ask Nova to send a simple email (no attachments yet).
+2. On the first attempt, the tool returns a confirmation preview.
+3. Reply with explicit confirmation (so Nova re-runs with `confirm=true`).
+
+#### Telegram: “email tool not available” / model says it can’t use `email`
+
+The `email` tool is **owner-only**. OpenClaw only exposes it to the model when **`senderIsOwner`** is true for that inbound message. If your bot accepts DMs from anyone (`channels.telegram.allowFrom` empty / open), **no sender is treated as owner** until you declare who the owner is.
+
+**Fix (recommended):** set a global owner allowlist (channel-native IDs; Telegram user id is numeric):
+
+```json5
+{
+  commands: {
+    ownerAllowFrom: ["telegram:6069715107"], // owner Telegram user id (owner-only tools, e.g. email)
+  },
+}
+```
+
+You can also use the bare id if you prefer (`"6069715107"`); OpenClaw normalizes Telegram allow-from entries (lowercase, optional `telegram:` / `tg:` prefix stripped during matching).
+
+**Still required for the tool to appear in the allowlisted tool set:**
+
+- `tools.profile` that includes `email` (e.g. coding profile + `tools.alsoAllow: ["email"]`), or equivalent per-channel tool policy — same as any other gated tool.
+
+**Alternative (different semantics):** put **only** your user id in `channels.telegram.allowFrom`. That both restricts who can message the bot **and** makes you the command/owner candidate for that channel. Use this only if you want a closed bot, not a public one.
+
+After editing config, restart the gateway (or apply config reload if you use it), then **`/reset`** in Telegram so the session doesn’t keep stale assumptions.
+
+### 4.9 Web access (`web_search`, `web_fetch`, optional `browser`)
+
+OpenClaw exposes **built-in** web tools (no custom scraper scripts required):
+
+- **`web_search`** — provider-backed search (Brave, Gemini, Grok, Kimi, Perplexity, Firecrawl search, etc.). Requires at least one API key in the **gateway** environment or config.
+- **`web_fetch`** — fetches a URL and returns **markdown or plain text** (Readability + optional **Firecrawl**). Enabled by default when present in the tool policy; uses guarded HTTP (SSRF protections, timeouts, size caps).
+- **`browser`** — full browser automation (**separate** from search/fetch; heavier risk surface). Often **denied** in sandbox tool policies alongside `canvas` / `nodes`.
+
+Detailed keys, JSON5 examples, and disable patterns: see **[docs/WEB_ACCESS.md](./docs/WEB_ACCESS.md)** in this repo and upstream **[Web tools](https://docs.openclaw.ai/tools/web)**.
+
+Minimal config shape (optional explicit toggles):
+
+```json5
+{
+  tools: {
+    web: {
+      search: { enabled: true },
+      fetch: { enabled: true },
+    },
+  },
+}
+```
+
+**Docker:** in the **stock** OpenClaw `docker-compose.yml`, `openclaw-gateway` uses `env_file: ./email.env`. Put provider keys **in that file** (or add a second `env_file` such as `web.env`). `compose.env` is mainly for Compose substitution (`OPENCLAW_*`); it does **not** by itself pass `BRAVE_API_KEY` into the container unless you also map it under `environment:`.
+
+Example lines for `~/openclaw/openclaw/email.env` (or a dedicated `web.env`):
+
+- `GEMINI_API_KEY=...` — Gemini + Google Search grounding (typical free-tier path); prefer `tools.web.search.provider: "gemini"` if you may add Brave later
+- `BRAVE_API_KEY=...` — Brave Search API for `web_search`
+- `FIRECRAWL_API_KEY=...` — optional, improves `web_fetch` (and can back search depending on provider)
+
+**Safer Gemini install (hidden paste, backup, chmod 600):** from this Bot repo, run `./scripts/set-gemini-key-openclaw.sh`.
+
+**Hardening:** `chmod 600 ~/openclaw/openclaw/email.env`; never commit that file; rotate keys if they were ever pasted into chat; run `openclaw security audit` after tool-policy changes. See **[docs/WEB_ACCESS.md](./docs/WEB_ACCESS.md)** §6.
+
+Restart the gateway after changes:
+
+```bash
+cd "$HOME/openclaw/openclaw"
+sudo docker compose up -d openclaw-gateway
+```
+
+**Turn off all structured web tools quickly:**
+
+```json5
+{
+  tools: {
+    deny: ["group:web", "browser"],
+  },
+}
+```
+
+**Tool profile reminder:** the **coding** profile includes `web_search` and `web_fetch`. If you use **messaging** / **minimal**, add `web_search` / `web_fetch` via `tools.alsoAllow` (or switch profile) and ensure `tools.deny` / sandbox deny lists do not block them.
+
+Host-side env check (no API calls):
+
+```bash
+# from this Bot repo clone
+./scripts/check-web-access-env.sh
+```
+
+Chat smoke tests:
+
+1. “Search the web for the latest OpenClaw release notes.”
+2. “Use web_fetch on `https://example.com` and summarize in one sentence.”
 
 ---
 

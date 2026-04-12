@@ -1,0 +1,14 @@
+{
+  "version": "1.0",
+  "tools": [
+    {
+      "name": "judge",
+      "description": "Evo-Evaluator: calls Gemini Flash via OpenRouter to review Nova's output and return PASS/FAIL verdict",
+      "entry": "tools/judge.py",
+      "added_at": "2026-04-11T05:04:07.558477+00:00",
+      "added_by": "Nova"
+    }
+  ],
+  "last_updated": "2026-04-11T05:04:07.559041+00:00",
+  "registered_by": ""
+}
