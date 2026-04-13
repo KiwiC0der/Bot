@@ -10,7 +10,12 @@
 # Nova V2 local vector store (Chroma)
 .chroma/
 
+# Python
+__pycache__/
+*.py[cod]
+
 # Editor / OS
 .DS_Store
+**/~$*
 *.swp
 *~
