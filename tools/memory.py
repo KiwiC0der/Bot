@@ -40,7 +40,7 @@ def _client():
     path = _chroma_path()
     path.mkdir(parents=True, exist_ok=True)
     ef = embedding_functions.OllamaEmbeddingFunction(
-        url_base=_ollama_url(),
+        url=_ollama_url(),
         model_name="nomic-embed-text:latest",
     )
     return chromadb.PersistentClient(path=str(path)), ef
