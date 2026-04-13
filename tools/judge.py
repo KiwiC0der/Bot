@@ -3,7 +3,7 @@
 judge.py - Evo-Evaluator for Nova's self-evolving loop
 Usage: python3 judge.py --task "what was asked" --output "nova's solution" --criteria "acceptance criteria"
 Returns: PASS/FAIL verdict to stdout
-Uses local Ollama (phi3:mini) at NOVA_OLLAMA_BASE_URL (default http://127.0.0.1:11434).
+Uses local Ollama (phi3:mini) at NOVA_OLLAMA_BASE_URL (default http://172.27.80.201:11434).
 """
 
 import argparse
@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 
 JUDGE_MODEL = "phi3:mini"
 OLLAMA_CHAT = (
-    os.environ.get("NOVA_OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+    os.environ.get("NOVA_OLLAMA_BASE_URL", "http://172.27.80.201:11434").rstrip("/")
     + "/api/chat"
 )
 

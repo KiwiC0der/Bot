@@ -2,7 +2,7 @@
 """
 ChromaDB vector memory for Nova V2. Embeddings via Ollama nomic-embed-text.
 Env:
-  NOVA_OLLAMA_BASE_URL (default http://127.0.0.1:11434)
+  NOVA_OLLAMA_BASE_URL (default http://172.27.80.201:11434)
   NOVA_CHROMA_PATH (default ~/Bot/.chroma)
   NOVA_BOT_ROOT (default ~/Bot) — used only for default chroma path
 """
@@ -30,7 +30,7 @@ def _chroma_path() -> Path:
 
 
 def _ollama_url() -> str:
-    return os.environ.get("NOVA_OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+    return os.environ.get("NOVA_OLLAMA_BASE_URL", "http://172.27.80.201:11434").rstrip("/")
 
 
 def _client():
@@ -40,7 +40,7 @@ def _client():
     path = _chroma_path()
     path.mkdir(parents=True, exist_ok=True)
     ef = embedding_functions.OllamaEmbeddingFunction(
-        url_base=_ollama_url(),
+        url=_ollama_url(),
         model_name="nomic-embed-text:latest",
     )
     return chromadb.PersistentClient(path=str(path)), ef
