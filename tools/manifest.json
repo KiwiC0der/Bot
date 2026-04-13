@@ -3,12 +3,19 @@
   "tools": [
     {
       "name": "judge",
-      "description": "Evo-Evaluator: calls Gemini Flash via OpenRouter to review Nova's output and return PASS/FAIL verdict",
+      "description": "Evo-Evaluator: calls Ollama phi3:mini at NOVA_OLLAMA_BASE_URL to review Nova output (PASS/FAIL)",
       "entry": "tools/judge.py",
       "added_at": "2026-04-11T05:04:07.558477+00:00",
       "added_by": "Nova"
+    },
+    {
+      "name": "memory",
+      "description": "ChromaDB vector memory with nomic-embed-text via Ollama; add_memory / search_memory CLI",
+      "entry": "tools/memory.py",
+      "added_at": "2026-04-12T00:00:00.000000+00:00",
+      "added_by": "Nova"
     }
   ],
-  "last_updated": "2026-04-11T05:04:07.559041+00:00",
+  "last_updated": "2026-04-12T00:00:00.000000+00:00",
   "registered_by": ""
 }
