@@ -7,6 +7,9 @@
 **/web.env
 **/*.pem
 **/*.key
+# Nova V2 local vector store (Chroma)
+.chroma/
+
 # Editor / OS
 .DS_Store
 *.swp

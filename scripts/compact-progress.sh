@@ -1,6 +1,6 @@
 #!/bin/bash
 # Trims progress.md to last 10 iteration entries to prevent context drift
-PROGRESS="$HOME/Desktop/Bot/progress.md"
+PROGRESS="$HOME/Bot/progress.md"
 MAX_ENTRIES=10
 
 if [ ! -f "$PROGRESS" ]; then
